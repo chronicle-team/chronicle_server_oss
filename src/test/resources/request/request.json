@@ -1,0 +1,10 @@
+{
+  "id": {
+    "fieldType": "STRING",
+    "isAutoIncrement": true,
+    "isPrimaryKey": true
+  },
+  "title": {
+    "fieldType": "STRING"
+  }
+}

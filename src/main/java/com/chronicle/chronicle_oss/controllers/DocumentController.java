@@ -1,65 +1,49 @@
 package com.chronicle.chronicle_oss.controllers;
 
-import com.chronicle.chronicle_oss.models.Document;
-import com.chronicle.chronicle_oss.models.DocumentEnum;
-import com.chronicle.chronicle_oss.repositories.DocumentRepository;
-import de.elnarion.ddlutils.Platform;
-import de.elnarion.ddlutils.model.Column;
-import de.elnarion.ddlutils.model.Database;
-import de.elnarion.ddlutils.model.Table;
-import de.elnarion.ddlutils.model.TypeMap;
+import com.chronicle.chronicle_oss.exceptions.BadRequestException;
+import com.chronicle.chronicle_oss.models.Config;
+import com.chronicle.chronicle_oss.models.FieldConfig;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.MediaType;
-import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
-import java.io.IOException;
-import java.util.List;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
+import java.util.Map;
 
 @RestController
-@RequestMapping("config")
+@RequestMapping("documents")
 public class DocumentController {
 
-    private Platform platform;
-    private Database database;
-    //TODO: document service with validation
-    private DocumentRepository documentRepository;
+    private ConfigController configController;
+    private ObjectMapper objectMapper;
 
     @Autowired
-    public DocumentController(Platform platform, Database database, DocumentRepository documentRepository) {
-        this.platform = platform;
-        this.database = database;
-        this.documentRepository = documentRepository;
+    public DocumentController(ConfigController configController, ObjectMapper objectMapper) {
+        this.configController = configController;
+        this.objectMapper = objectMapper;
     }
 
-    @GetMapping
-    public List<Document> getAllDocuments() {
-        return StreamSupport.stream(documentRepository.findAll().spliterator(), false)
-                .collect(Collectors.toList());
-    }
+    @PostMapping
+    public void addDocument(String configName, String data) throws JsonProcessingException {
+        Config config = configController.getConfig(configName).orElseThrow(BadRequestException::new);
+        Map<String, FieldConfig> jsonConfig = objectMapper.readValue(config.getJson(), new TypeReference<Map<String, FieldConfig>>() {
+        });
+        Map<String, Object> documentData = objectMapper.readValue(data, new TypeReference<Map<String, Object>>() {
+        });
 
-    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public void addDocument(@RequestParam String name, @RequestParam String json, @RequestParam DocumentEnum templateType, @RequestParam MultipartFile template) throws IOException {
-//        DocumentEnum documentEnum = DocumentEnum.valueOfType(templateType).orElseThrow(() -> new IllegalArgumentException(templateType));
-        Document build = Document.builder().name(name)
-                .json(json)
-                .templateType(templateType)
-                .template(template.getBytes())
-                .build();
+        documentData.forEach((key, value) -> {
+            FieldConfig fieldConfig = jsonConfig.get(key);
+            if (fieldConfig == null) {
+                throw new BadRequestException(key);
+            }
 
-        Table table = new Table();
-        Column column = new Column();
-        //TODO create columns form json
-        column.setName("aaaa");
-        column.setType(TypeMap.VARCHAR);
-        table.setName(name);
-        table.addColumn(column);
-        database.addTable(table);
+            Class javaClass = fieldConfig.getFieldType().getJavaClass();
+            Object cast = javaClass.cast(value);
 
-        platform.createModel(database, false, false);
-
-        documentRepository.save(build);
+            // save in db
+        });
     }
 }
