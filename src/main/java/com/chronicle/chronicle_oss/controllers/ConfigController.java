@@ -10,6 +10,7 @@ import de.elnarion.ddlutils.Platform;
 import de.elnarion.ddlutils.model.Column;
 import de.elnarion.ddlutils.model.Database;
 import de.elnarion.ddlutils.model.Table;
+import org.apache.commons.beanutils.DynaBean;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
