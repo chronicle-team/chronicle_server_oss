@@ -1,18 +1,11 @@
 package com.chronicle.chronicle_oss.controllers;
 
-import com.spire.doc.*;
-import com.chronicle.chronicle_oss.exceptions.BadRequestException;
-import com.chronicle.chronicle_oss.models.Config;
+import com.chronicle.chronicle_oss.exceptions.NotFoundException;
+import com.chronicle.chronicle_oss.models.DocumentType;
+import com.chronicle.chronicle_oss.models.Field;
 import com.chronicle.chronicle_oss.models.FieldConfig;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.io.Resources;
-import de.elnarion.ddlutils.Platform;
-import de.elnarion.ddlutils.dynabean.DynaClassCache;
-import de.elnarion.ddlutils.model.Database;
-import de.elnarion.ddlutils.model.Table;
-import org.apache.commons.beanutils.DynaBean;
+import com.chronicle.chronicle_oss.services.ConfigService;
+import com.chronicle.chronicle_oss.services.DocumentService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -20,73 +13,48 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.io.File;
-import java.io.InputStream;
-import java.util.List;
 import java.util.Map;
-import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("documents")
 public class DocumentController {
 
-    private ConfigController configController;
-    private ObjectMapper objectMapper;
-
-    private Platform platform;
-    private Database database;
+    private ConfigService configService;
+    private DocumentService documentService;
 
     @Autowired
-    public DocumentController(ConfigController configController, ObjectMapper objectMapper, Platform platform, Database database) {
-        this.configController = configController;
-        this.objectMapper = objectMapper;
-        this.platform = platform;
-        this.database = database;
+    public DocumentController(ConfigService configService, DocumentService documentService) {
+        this.configService = configService;
+        this.documentService = documentService;
     }
 
     @GetMapping
-    public void getFile(String configName) throws JsonProcessingException {
-        Config config = configController.getConfig(configName).orElseThrow(BadRequestException::new);
-        Map<String, FieldConfig> jsonConfig = objectMapper.readValue(config.getJson(), new TypeReference<Map<String, FieldConfig>>() {
-        });
-        List<DynaBean> fetch = platform.fetch(database, "SELECT * FROM " + configName);
-        try (InputStream is = Resources.getResource("Request.docx").openStream()) {
-            Document doc = new Document(is);
-            for (Map.Entry<String, FieldConfig> entry : jsonConfig.entrySet()) {
-                String k = entry.getKey();
-                FieldConfig v = entry.getValue();
-                Optional<Object> first = fetch.stream().map(f -> f.get(k)).findFirst();
-                if (first.isPresent()) {
-                    doc.replace("{" + configName + "." + k + "}", first.get().toString(), false, true);
-                }
-            }
-            doc.saveToFile("new.doc");
-        } catch (Exception e) {
-            e.printStackTrace();
+    /**
+     * documentName - documentName
+     * conditionals - batch of AND-conditionals
+     */
+    public File getFile(String documentName, Set<String> conditionals) {
+        Map<String, FieldConfig> jsonConfig = configService.getConfigJson(documentName);
+        Set<Map<String, Field>> parsedConditionals = conditionals.stream()
+                .map(data -> documentService.parseDocumentData(data, jsonConfig))
+                .collect(Collectors.toSet());
+        Map<String, Field> documentData = documentService.getDocument(documentName, parsedConditionals);
+        DocumentType templateType = configService.getTemplateType(documentName);
+        byte[] template = configService.getTemplate(documentName);
+        switch (templateType) {
+            case DOCX:
+                return documentService.getDocDocument(documentName, template, documentData);
         }
+
+        throw new NotFoundException(documentName);
     }
 
     @PostMapping
-    public void addDocument(String configName, String data) throws JsonProcessingException {
-        Config config = configController.getConfig(configName).orElseThrow(BadRequestException::new);
-        Map<String, FieldConfig> jsonConfig = objectMapper.readValue(config.getJson(), new TypeReference<Map<String, FieldConfig>>() {
-        });
-        Map<String, Object> documentData = objectMapper.readValue(data, new TypeReference<Map<String, Object>>() {
-        });
-
-        Table table = database.findTable(configName);
-        DynaBean newInstance = new DynaClassCache().createNewInstance(table);
-
-        documentData.forEach((key, value) -> {
-            FieldConfig fieldConfig = jsonConfig.get(key);
-            if (fieldConfig == null) {
-                throw new BadRequestException(key);
-            }
-
-            Class javaClass = fieldConfig.getFieldType().getJavaClass();
-            Object cast = javaClass.cast(value);
-            newInstance.set(key, cast);
-            // save in db
-        });
-        platform.insert(database, newInstance);
+    public void addDocument(String configName, String data) {
+        Map<String, FieldConfig> jsonConfig = configService.getConfigJson(configName);
+        Map<String, Field> documentData = documentService.parseDocumentData(data, jsonConfig);
+        documentService.saveDocument(configName, documentData);
     }
 }
