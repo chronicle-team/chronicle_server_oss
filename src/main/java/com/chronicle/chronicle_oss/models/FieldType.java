@@ -5,6 +5,7 @@ import lombok.Getter;
 import static de.elnarion.ddlutils.model.TypeMap.VARCHAR;
 
 public enum FieldType {
+    //TODO: add number support for id
     STRING(VARCHAR, String.class);
 
     @Getter

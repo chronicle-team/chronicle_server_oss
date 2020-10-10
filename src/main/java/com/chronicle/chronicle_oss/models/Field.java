@@ -3,8 +3,10 @@ package com.chronicle.chronicle_oss.models;
 import com.chronicle.chronicle_oss.exceptions.BadRequestException;
 import lombok.Data;
 
+import java.io.Serializable;
+
 @Data
-public class Field {
+public class Field implements Serializable {
     private String fieldKey;
     private FieldType fieldType;
     private Object fieldValue;

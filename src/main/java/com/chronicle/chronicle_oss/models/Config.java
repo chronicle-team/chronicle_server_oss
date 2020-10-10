@@ -22,6 +22,6 @@ public class Config {
     private String name;
     private String json;
     private DocumentType templateType;
-    @Column(length = 5000)
+    @Column(length = Integer.MAX_VALUE)
     private byte[] template;
 }
