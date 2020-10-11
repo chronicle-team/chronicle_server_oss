@@ -1,12 +1,13 @@
 package com.chronicle.chronicle_oss.models;
 
+import de.elnarion.ddlutils.model.TypeMap;
 import lombok.Getter;
 
 import static de.elnarion.ddlutils.model.TypeMap.VARCHAR;
 
 public enum FieldType {
-    //TODO: add number support for id
-    STRING(VARCHAR, String.class);
+    STRING(VARCHAR, String.class),
+    INT(TypeMap.INTEGER, Integer.class);
 
     @Getter
     private final String databaseType;

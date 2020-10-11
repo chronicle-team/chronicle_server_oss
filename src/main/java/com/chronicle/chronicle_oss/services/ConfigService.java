@@ -5,6 +5,7 @@ import com.chronicle.chronicle_oss.exceptions.NotFoundException;
 import com.chronicle.chronicle_oss.models.Config;
 import com.chronicle.chronicle_oss.models.DocumentType;
 import com.chronicle.chronicle_oss.models.FieldConfig;
+import com.chronicle.chronicle_oss.models.FieldType;
 import com.chronicle.chronicle_oss.repositories.ConfigRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -67,5 +68,13 @@ public class ConfigService {
 
     public DocumentType getTemplateType(String documentName) {
         return getConfig(documentName).map(Config::getTemplateType).orElseThrow(() -> new NotFoundException(documentName));
+    }
+
+    public void validateJson(Map<String, FieldConfig> config) {
+        config.forEach((k, v) -> {
+            if (v.getFieldType() != FieldType.INT && (v.isAutoIncrement())) {
+                throw new IllegalArgumentException("Auto Increment should be INT");
+            }
+        });
     }
 }
